@@ -1,0 +1,392 @@
+---
+# Kubernetes Resource Quota
+# ==========================
+#
+# WHAT IS A RESOURCE QUOTA?
+# Limits the total resources that can be consumed in a namespace
+#
+# WHY USE RESOURCE QUOTAS?
+# 1. Prevent runaway jobs from consuming all cluster resources
+# 2. Enforce fair sharing among teams (multi-tenancy)
+# 3. Control costs (limit total resource usage)
+# 4. Ensure cluster stability (prevent resource exhaustion)
+#
+# DEVOPS ANALOGY:
+# Like AWS Service Quotas or GCP quotas
+# Or like setting budget alerts in cloud billing
+#
+# ============================================================================
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: bioinformatics-quota
+  namespace: bioinformatics
+  
+  labels:
+    purpose: resource-management
+  
+  annotations:
+    description: "Resource limits for bioinformatics workloads"
+
+spec:
+  hard:
+    # ========================================================================
+    # COMPUTE RESOURCES
+    # ========================================================================
+    
+    # CPU LIMITS
+    # ----------
+    # Total CPU that can be requested across all pods
+    #
+    # CALCULATION:
+    #   - FastQC: 2 CPUs per pod × 10 parallel = 20 CPUs
+    #   - STAR: 8 CPUs per pod × 5 parallel = 40 CPUs
+    #   - Salmon: 4 CPUs per pod × 10 parallel = 40 CPUs
+    #   - Total: 100 CPUs
+    #
+    requests.cpu: "100"
+    limits.cpu: "120"  # Allow some burst capacity
+    
+    # MEMORY LIMITS
+    # -------------
+    # Total memory that can be requested across all pods
+    #
+    # CALCULATION:
+    #   - FastQC: 4 GB per pod × 10 parallel = 40 GB
+    #   - STAR: 32 GB per pod × 5 parallel = 160 GB
+    #   - Salmon: 8 GB per pod × 10 parallel = 80 GB
+    #   - Buffer: 20 GB
+    #   - Total: 300 GB
+    #
+    requests.memory: 300Gi
+    limits.memory: 350Gi  # Allow some burst capacity
+    
+    # ========================================================================
+    # STORAGE RESOURCES
+    # ========================================================================
+    
+    # PERSISTENT VOLUME CLAIMS
+    # -------------------------
+    # Maximum number of PVCs in the namespace
+    #
+    # REASONING:
+    #   - 1 PVC for shared data (genomics-data-pvc)
+    #   - 5 PVCs for project-specific data
+    #   - 4 PVCs for temporary/scratch space
+    #
+    persistentvolumeclaims: "10"
+    
+    # STORAGE SIZE
+    # ------------
+    # Total storage that can be requested
+    #
+    # CALCULATION:
+    #   - Main PVC: 100 GB
+    #   - Project PVCs: 5 × 50 GB = 250 GB
+    #   - Scratch PVCs: 4 × 25 GB = 100 GB
+    #   - Total: 450 GB
+    #
+    requests.storage: 500Gi
+    
+    # ========================================================================
+    # OBJECT COUNTS
+    # ========================================================================
+    
+    # PODS
+    # ----
+    # Maximum number of pods that can exist simultaneously
+    #
+    # REASONING:
+    #   - 1 Nextflow head pod
+    #   - 25 worker pods (FastQC, STAR, Salmon)
+    #   - 4 monitoring/logging pods
+    #   - Total: 30 pods
+    #
+    pods: "50"
+    
+    # SERVICES
+    # --------
+    # Maximum number of services
+    #
+    # REASONING:
+    #   - 1 service for Nextflow (if exposing)
+    #   - 2 services for monitoring (Prometheus, Grafana)
+    #   - Total: 3 services
+    #
+    services: "5"
+    
+    # CONFIGMAPS
+    # ----------
+    # Maximum number of ConfigMaps
+    #
+    # REASONING:
+    #   - 1 ConfigMap for pipeline configuration
+    #   - 2 ConfigMaps for tool configurations
+    #   - Total: 3 ConfigMaps
+    #
+    configmaps: "10"
+    
+    # SECRETS
+    # -------
+    # Maximum number of Secrets
+    #
+    # REASONING:
+    #   - 1 Secret for container registry credentials
+    #   - 2 Secrets for API keys (if needed)
+    #   - Total: 3 Secrets
+    #
+    secrets: "10"
+    
+    # ========================================================================
+    # ADVANCED QUOTAS (Optional)
+    # ========================================================================
+    
+    # LOAD BALANCERS
+    # --------------
+    # Maximum number of LoadBalancer services
+    # (Usually not needed for bioinformatics pipelines)
+    #
+    # services.loadbalancers: "0"
+    
+    # NODE PORTS
+    # ----------
+    # Maximum number of NodePort services
+    #
+    # services.nodeports: "2"
+
+---
+# LIMIT RANGE
+# ===========
+# Sets default and maximum resource limits for individual pods/containers
+#
+# WHAT'S THE DIFFERENCE?
+#   - ResourceQuota: Total limits for the namespace
+#   - LimitRange: Per-pod/container limits
+#
+# DEVOPS ANALOGY:
+#   - ResourceQuota: Total AWS account limits
+#   - LimitRange: Per-instance limits (e.g., max t3.2xlarge)
+#
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: bioinformatics-limitrange
+  namespace: bioinformatics
+  
+  labels:
+    purpose: resource-management
+  
+  annotations:
+    description: "Default and maximum resource limits per pod/container"
+
+spec:
+  limits:
+    # ========================================================================
+    # POD LIMITS
+    # ========================================================================
+    - type: Pod
+      max:
+        cpu: "16"       # No single pod can request more than 16 CPUs
+        memory: 64Gi    # No single pod can request more than 64 GB RAM
+      min:
+        cpu: "100m"     # Every pod must request at least 0.1 CPU
+        memory: 128Mi   # Every pod must request at least 128 MB RAM
+    
+    # ========================================================================
+    # CONTAINER LIMITS
+    # ========================================================================
+    - type: Container
+      # MAXIMUM LIMITS
+      # --------------
+      # No container can exceed these limits
+      max:
+        cpu: "16"
+        memory: 64Gi
+      
+      # MINIMUM REQUESTS
+      # ----------------
+      # Every container must request at least this much
+      min:
+        cpu: "100m"
+        memory: 128Mi
+      
+      # DEFAULT REQUESTS
+      # ----------------
+      # If a container doesn't specify requests, use these
+      default:
+        cpu: "1"
+        memory: 2Gi
+      
+      # DEFAULT LIMITS
+      # --------------
+      # If a container doesn't specify limits, use these
+      defaultRequest:
+        cpu: "500m"
+        memory: 1Gi
+      
+      # MAX LIMIT/REQUEST RATIO
+      # -----------------------
+      # Prevent containers from requesting too little but limiting too much
+      # (This can cause resource fragmentation)
+      maxLimitRequestRatio:
+        cpu: "4"        # Limit can be at most 4x the request
+        memory: "2"     # Limit can be at most 2x the request
+    
+    # ========================================================================
+    # PERSISTENT VOLUME CLAIM LIMITS
+    # ========================================================================
+    - type: PersistentVolumeClaim
+      max:
+        storage: 200Gi  # No single PVC can be larger than 200 GB
+      min:
+        storage: 1Gi    # Every PVC must be at least 1 GB
+
+---
+# DEVOPS NOTES: RESOURCE MANAGEMENT STRATEGY
+# ===========================================
+#
+# REQUESTS vs. LIMITS:
+# --------------------
+# REQUESTS: Guaranteed resources (used for scheduling)
+#   - Kubernetes will only schedule pod if node has enough resources
+#   - Pod will always get at least this much
+#
+# LIMITS: Maximum resources (used for enforcement)
+#   - Pod can use up to this much (if available)
+#   - If exceeded, pod is throttled (CPU) or killed (memory)
+#
+# BEST PRACTICE:
+#   - Set requests = typical usage
+#   - Set limits = peak usage
+#   - Don't set limits too high (wastes resources)
+#   - Don't set requests too low (pod gets starved)
+#
+# EXAMPLE:
+#   requests:
+#     cpu: "2"      # Guaranteed 2 CPUs
+#     memory: 4Gi   # Guaranteed 4 GB
+#   limits:
+#     cpu: "4"      # Can burst to 4 CPUs
+#     memory: 8Gi   # Can use up to 8 GB
+#
+# ============================================================================
+
+---
+# MONITORING RESOURCE USAGE
+# ==========================
+#
+# COMMANDS:
+#   # View current resource usage
+#   kubectl top nodes
+#   kubectl top pods -n bioinformatics
+#   
+#   # View resource quota usage
+#   kubectl describe resourcequota bioinformatics-quota -n bioinformatics
+#   
+#   # View limit range
+#   kubectl describe limitrange bioinformatics-limitrange -n bioinformatics
+#   
+#   # View pod resource requests/limits
+#   kubectl describe pod <pod-name> -n bioinformatics
+#
+# METRICS TO MONITOR:
+#   - CPU utilization (should be 60-80% for efficiency)
+#   - Memory utilization (should be 70-90% for efficiency)
+#   - Pod count (should be < quota)
+#   - PVC usage (should be < quota)
+#
+# ALERTS TO SET UP:
+#   - CPU quota > 80% used
+#   - Memory quota > 80% used
+#   - Pod quota > 80% used
+#   - Storage quota > 80% used
+
+---
+# TROUBLESHOOTING QUOTA ISSUES
+# =============================
+#
+# SYMPTOM: "Error: exceeded quota"
+# CAUSE: Namespace has reached resource quota
+# FIX: 
+#   1. Check current usage: kubectl describe resourcequota -n bioinformatics
+#   2. Delete unused pods/PVCs
+#   3. Increase quota if justified
+#
+# SYMPTOM: "Pod pending: Insufficient cpu/memory"
+# CAUSE: Node doesn't have enough resources OR quota exceeded
+# FIX:
+#   1. Check quota: kubectl describe resourcequota -n bioinformatics
+#   2. Check node capacity: kubectl describe node <node-name>
+#   3. Scale cluster or reduce pod requests
+#
+# SYMPTOM: "Pod OOMKilled (Out of Memory)"
+# CAUSE: Pod exceeded memory limit
+# FIX:
+#   1. Check pod memory usage: kubectl top pod <pod-name> -n bioinformatics
+#   2. Increase memory limit in nextflow.config
+#   3. Investigate memory leak (if usage keeps growing)
+#
+# SYMPTOM: "Pod CPU throttled"
+# CAUSE: Pod is using more CPU than limit
+# FIX:
+#   1. Check CPU usage: kubectl top pod <pod-name> -n bioinformatics
+#   2. Increase CPU limit in nextflow.config
+#   3. Optimize code (if possible)
+
+---
+# COST OPTIMIZATION WITH QUOTAS
+# ==============================
+#
+# STRATEGY 1: RIGHT-SIZING
+#   - Monitor actual resource usage
+#   - Adjust requests/limits to match reality
+#   - Don't over-provision (wastes money)
+#   - Don't under-provision (causes failures)
+#
+# STRATEGY 2: SPOT INSTANCES
+#   - Use spot instances for non-critical workloads
+#   - Set appropriate pod disruption budgets
+#   - Handle interruptions gracefully (Nextflow resume)
+#
+# STRATEGY 3: AUTO-SCALING
+#   - Use cluster autoscaler (scale nodes based on demand)
+#   - Use HPA (Horizontal Pod Autoscaler) for head pod
+#   - Scale to zero when idle (save money)
+#
+# STRATEGY 4: RESOURCE QUOTAS
+#   - Prevent runaway jobs (cost control)
+#   - Enforce fair sharing (multi-tenancy)
+#   - Set budget alerts (AWS/GCP)
+#
+# COST EXAMPLE (AWS):
+#   - t3.2xlarge (8 vCPU, 32 GB): $0.3328/hour
+#   - 100 CPUs = 13 instances = $4.33/hour = $3,118/month (24/7)
+#   - With autoscaling (8 hours/day): $1,039/month (67% savings!)
+#   - With spot instances: $312/month (90% savings!)
+
+---
+# DEVOPS INTERVIEW TALKING POINTS
+# ================================
+#
+# "I implemented resource quotas to prevent runaway jobs"
+#   - Set namespace-level limits (ResourceQuota)
+#   - Set per-pod limits (LimitRange)
+#   - Monitored usage and adjusted as needed
+#
+# "I understand the difference between requests and limits"
+#   - Requests: Guaranteed resources (for scheduling)
+#   - Limits: Maximum resources (for enforcement)
+#   - Set requests = typical, limits = peak
+#
+# "I optimized costs with resource management"
+#   - Right-sized pod resources (no over-provisioning)
+#   - Used spot instances (70-90% savings)
+#   - Implemented auto-scaling (scale to zero when idle)
+#   - Set up cost monitoring and alerts
+#
+# "I know how to troubleshoot resource issues"
+#   - Check quota usage (kubectl describe resourcequota)
+#   - Monitor pod resources (kubectl top pods)
+#   - Investigate OOMKilled pods (check limits)
+#   - Debug pending pods (check quota and node capacity)

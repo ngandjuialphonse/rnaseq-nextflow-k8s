@@ -1,0 +1,84 @@
+---
+# Kubernetes Namespace for Bioinformatics Workloads
+# ==================================================
+#
+# WHAT IS A NAMESPACE?
+# A namespace is a logical isolation boundary in Kubernetes.
+# It's like a VPC in AWS or a project in GCP.
+#
+# WHY USE A NAMESPACE?
+# 1. Isolation: Separate bioinformatics workloads from other apps
+# 2. Resource Quotas: Limit CPU/memory/storage per namespace
+# 3. RBAC: Control who can access what (per namespace)
+# 4. Organization: Group related resources together
+# 5. Multi-tenancy: Multiple teams can share the same cluster
+#
+# DEVOPS ANALOGY:
+# Like creating a separate AWS account or GCP project for a team/project
+#
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bioinformatics
+  
+  labels:
+    # Labels for organization and filtering
+    name: bioinformatics
+    purpose: genomics-pipelines
+    team: computational-biology
+    environment: production
+    
+    # Cost tracking (for cloud billing)
+    cost-center: research
+    project: rna-seq-platform
+  
+  annotations:
+    # Documentation
+    description: "Namespace for RNA-Seq analysis pipelines"
+    owner: "devops-team@company.com"
+    created-by: "devops-engineer"
+    
+    # Monitoring (Prometheus)
+    prometheus.io/scrape: "true"
+    
+    # Network policies (optional)
+    # network-policy: "enabled"
+
+---
+# DEVOPS NOTES:
+# =============
+#
+# NAMING CONVENTION:
+#   Use lowercase, descriptive names (e.g., bioinformatics, data-science)
+#
+# LABELS:
+#   - Use for filtering: kubectl get ns -l environment=production
+#   - Use for cost allocation: Group by cost-center label
+#   - Use for monitoring: Prometheus service discovery
+#
+# ANNOTATIONS:
+#   - Use for documentation (not for filtering)
+#   - Use for tool-specific metadata (e.g., Prometheus)
+#
+# BEST PRACTICES:
+#   1. One namespace per team or project
+#   2. Don't use 'default' namespace in production
+#   3. Set resource quotas (see resource-quota.yaml)
+#   4. Set network policies (for security)
+#   5. Enable monitoring and logging
+#
+# COMMANDS:
+#   # Create namespace
+#   kubectl apply -f namespace.yaml
+#   
+#   # View namespaces
+#   kubectl get namespaces
+#   
+#   # Describe namespace
+#   kubectl describe namespace bioinformatics
+#   
+#   # Delete namespace (careful - deletes all resources!)
+#   kubectl delete namespace bioinformatics
+#   
+#   # Set default namespace (for kubectl)
+#   kubectl config set-context --current --namespace=bioinformatics

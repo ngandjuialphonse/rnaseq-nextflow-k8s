@@ -1,0 +1,405 @@
+---
+# Kubernetes Storage Configuration for Genomic Data
+# ==================================================
+#
+# THE STORAGE CHALLENGE:
+# Genomic data is HUGE:
+#   - Reference genome: ~30 GB (human)
+#   - FASTQ files: 1-50 GB per sample (compressed)
+#   - BAM files: 5-20 GB per sample
+#   - Total: 100+ GB for a typical project
+#
+# THE PROBLEM:
+# Multiple pods need to read/write the same data simultaneously:
+#   - All alignment pods need the reference genome
+#   - Intermediate files passed between pipeline stages
+#   - Final results written to shared location
+#
+# THE SOLUTION:
+# Use a PersistentVolumeClaim (PVC) with ReadWriteMany access mode
+# backed by a network file system (NFS, EFS, Filestore)
+#
+# DEVOPS ANALOGY:
+# Like a shared NFS mount for distributed workers
+# Or like S3 (but with POSIX filesystem semantics)
+#
+# ============================================================================
+
+---
+# STORAGE CLASS (AWS EFS Example)
+# ================================
+# Defines HOW storage is provisioned
+#
+# DEVOPS ANALOGY:
+# Like defining an EBS volume type (gp3, io2, etc.)
+# Or like S3 storage classes (Standard, IA, Glacier)
+#
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+  
+  labels:
+    storage-type: network-filesystem
+    provider: aws-efs
+  
+  annotations:
+    description: "AWS EFS storage for genomic data"
+    storageclass.kubernetes.io/is-default-class: "false"
+
+# AWS EFS CSI Driver
+provisioner: efs.csi.aws.com
+
+parameters:
+  # Provisioning mode
+  provisioningMode: efs-ap  # EFS Access Point (recommended)
+  
+  # EFS File System ID (replace with your EFS ID)
+  # Get this from: aws efs describe-file-systems
+  fileSystemId: fs-XXXXXXXXX  # REPLACE THIS
+  
+  # Directory permissions
+  directoryPerms: "700"
+  
+  # GID for files (optional)
+  # gidRangeStart: "1000"
+  # gidRangeEnd: "2000"
+  
+  # Base path (optional)
+  # basePath: "/bioinformatics"
+
+# Mount options
+mountOptions:
+  - tls           # Encrypt data in transit
+  - iam           # Use IAM for authentication
+
+# Reclaim policy (what happens when PVC is deleted)
+reclaimPolicy: Retain  # Keep data even if PVC is deleted (safe!)
+# reclaimPolicy: Delete  # Delete data when PVC is deleted (dangerous!)
+
+# Volume binding mode
+volumeBindingMode: Immediate  # Provision immediately when PVC is created
+
+# Allow volume expansion
+allowVolumeExpansion: true  # Can increase size later without downtime
+
+---
+# ALTERNATIVE: GCP FILESTORE (for GKE)
+# ====================================
+# Uncomment if using GCP instead of AWS
+#
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: filestore-sc
+# provisioner: filestore.csi.storage.gke.io
+# parameters:
+#   tier: standard  # or 'premium' for higher IOPS
+#   network: default
+# volumeBindingMode: WaitForFirstConsumer
+# allowVolumeExpansion: true
+
+---
+# ALTERNATIVE: AZURE FILES (for AKS)
+# ==================================
+# Uncomment if using Azure instead of AWS/GCP
+#
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: azurefile-sc
+# provisioner: file.csi.azure.com
+# parameters:
+#   skuName: Standard_LRS  # or Premium_LRS
+# volumeBindingMode: Immediate
+# allowVolumeExpansion: true
+
+---
+# PERSISTENT VOLUME CLAIM (PVC)
+# ==============================
+# Requests storage from the StorageClass
+#
+# DEVOPS ANALOGY:
+# Like requesting an EBS volume or creating an S3 bucket
+# The PVC is the "request", the PV (PersistentVolume) is the "actual storage"
+#
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: genomics-data-pvc
+  namespace: bioinformatics
+  
+  labels:
+    app: bioinformatics-platform
+    data-type: genomic-data
+  
+  annotations:
+    description: "Shared storage for genomic data and pipeline results"
+    volume.beta.kubernetes.io/storage-provisioner: efs.csi.aws.com
+
+spec:
+  # ACCESS MODES
+  # ============
+  # This is the MOST IMPORTANT setting for bioinformatics!
+  #
+  # ReadWriteOnce (RWO):  One pod can read/write (like EBS)
+  # ReadOnlyMany (ROX):   Many pods can read (like S3 with read-only)
+  # ReadWriteMany (RWX):  Many pods can read/write (like NFS)
+  #
+  # WHY ReadWriteMany?
+  # - Multiple alignment pods need to read reference genome simultaneously
+  # - Pods need to write results to shared location
+  # - Pipeline stages pass data through shared filesystem
+  #
+  # DEVOPS ANALOGY:
+  # Like a shared NFS mount vs. a local disk
+  #
+  accessModes:
+    - ReadWriteMany  # REQUIRED for parallel processing!
+  
+  # STORAGE CLASS
+  # =============
+  # Which StorageClass to use (defined above)
+  #
+  storageClassName: efs-sc  # Use EFS storage class
+  
+  # STORAGE SIZE
+  # ============
+  # How much storage to provision
+  #
+  # SIZING GUIDE:
+  #   - Reference genome + index: ~50 GB
+  #   - Input FASTQ files: ~10 GB per sample
+  #   - Intermediate BAM files: ~10 GB per sample
+  #   - Final results: ~1 GB per sample
+  #   - Buffer: 20% overhead
+  #
+  # EXAMPLE (10 samples):
+  #   50 + (10 * 10) + (10 * 10) + (10 * 1) + 20% = 50 + 100 + 100 + 10 + 52 = 312 GB
+  #
+  # For testing: 100 GB
+  # For production: 500 GB - 1 TB
+  #
+  resources:
+    requests:
+      storage: 100Gi  # Start with 100 GB (can expand later)
+  
+  # VOLUME MODE
+  # ===========
+  # Filesystem: Mount as a directory (POSIX)
+  # Block: Raw block device (for databases)
+  #
+  volumeMode: Filesystem  # Use filesystem (standard for bioinformatics)
+  
+  # SELECTOR (Optional)
+  # ===================
+  # Select specific PersistentVolumes by label
+  # Useful if you have pre-created PVs
+  #
+  # selector:
+  #   matchLabels:
+  #     storage-type: genomic-data
+
+---
+# DEVOPS NOTES: STORAGE OPTIONS COMPARISON
+# ========================================
+#
+# ┌─────────────────┬──────────────┬──────────────┬─────────────┬──────────────┐
+# │ Storage Type    │ Access Mode  │ Performance  │ Cost        │ Use Case     │
+# ├─────────────────┼──────────────┼──────────────┼─────────────┼──────────────┤
+# │ AWS EBS         │ RWO          │ High         │ Medium      │ Single pod   │
+# │ AWS EFS         │ RWX          │ Medium       │ High        │ Multi-pod    │
+# │ AWS S3 (CSI)    │ ROX          │ Low          │ Low         │ Read-only    │
+# │ GCP PD          │ RWO          │ High         │ Medium      │ Single pod   │
+# │ GCP Filestore   │ RWX          │ Medium       │ High        │ Multi-pod    │
+# │ Azure Disk      │ RWO          │ High         │ Medium      │ Single pod   │
+# │ Azure Files     │ RWX          │ Medium       │ High        │ Multi-pod    │
+# │ NFS (on-prem)   │ RWX          │ Varies       │ Low         │ Multi-pod    │
+# │ Ceph (on-prem)  │ RWX          │ High         │ Medium      │ Multi-pod    │
+# └─────────────────┴──────────────┴──────────────┴─────────────┴──────────────┘
+#
+# RECOMMENDATION FOR BIOINFORMATICS:
+#   - AWS: EFS (ReadWriteMany, managed, easy to use)
+#   - GCP: Filestore (ReadWriteMany, managed)
+#   - Azure: Azure Files (ReadWriteMany, managed)
+#   - On-prem: NFS or Ceph (ReadWriteMany, self-managed)
+#
+# DON'T USE:
+#   - EBS/PD/Azure Disk (ReadWriteOnce - only one pod at a time)
+#   - S3/GCS (not POSIX filesystem - tools expect filesystem)
+
+---
+# COST OPTIMIZATION STRATEGIES
+# =============================
+#
+# 1. TIERED STORAGE:
+#    - Hot data (active projects): EFS/Filestore
+#    - Cold data (archived projects): S3/GCS (much cheaper)
+#    - Move data between tiers based on access patterns
+#
+# 2. LIFECYCLE POLICIES:
+#    - Delete intermediate files after pipeline completes
+#    - Compress BAM files (samtools view -b -h -o output.bam input.bam)
+#    - Archive old projects to S3 Glacier
+#
+# 3. STORAGE CLASSES:
+#    - EFS: Standard (frequent access) vs. Infrequent Access (IA)
+#    - IA is 85% cheaper but has retrieval fees
+#    - Use IA for reference genomes (read once per pipeline)
+#
+# 4. DEDUPLICATION:
+#    - Store reference genomes once, not per project
+#    - Use symbolic links or shared directories
+#
+# 5. COMPRESSION:
+#    - FASTQ: gzip (70% reduction)
+#    - BAM: built-in compression
+#    - Reference: don't compress (tools need fast random access)
+#
+# COST EXAMPLE (AWS, us-east-1):
+#   - EFS Standard: $0.30/GB/month
+#   - EFS IA: $0.045/GB/month (85% cheaper!)
+#   - S3 Standard: $0.023/GB/month (92% cheaper than EFS!)
+#   - S3 Glacier: $0.004/GB/month (99% cheaper than EFS!)
+#
+# FOR 1 TB:
+#   - EFS Standard: $300/month
+#   - EFS IA: $45/month
+#   - S3 Standard: $23/month
+#   - S3 Glacier: $4/month
+#
+# STRATEGY:
+#   - Active data (1 week): EFS Standard (100 GB) = $30/month
+#   - Recent data (1 month): EFS IA (500 GB) = $22.50/month
+#   - Archive (forever): S3 Glacier (10 TB) = $40/month
+#   - Total: ~$92.50/month vs. $3,300/month (all on EFS Standard)
+
+---
+# PERFORMANCE TUNING
+# ==================
+#
+# EFS PERFORMANCE MODES:
+#   - General Purpose: Default, good for most workloads
+#   - Max I/O: Higher throughput, higher latency (for many parallel pods)
+#
+# EFS THROUGHPUT MODES:
+#   - Bursting: Scales with storage size (default)
+#   - Provisioned: Fixed throughput (expensive but predictable)
+#
+# RECOMMENDATION:
+#   - Start with General Purpose + Bursting (cheapest)
+#   - Monitor IOPS and throughput
+#   - Upgrade to Max I/O or Provisioned if needed
+#
+# MONITORING METRICS:
+#   - Throughput: MB/s (should be > 100 MB/s for alignment)
+#   - IOPS: Operations/s (should be > 1000 for many small files)
+#   - Latency: ms (should be < 10 ms for good performance)
+#
+# BOTTLENECK DETECTION:
+#   - If alignment is slow, check storage throughput
+#   - If many pods are waiting, check IOPS
+#   - If latency is high, check network or use local SSD cache
+
+---
+# SECURITY BEST PRACTICES
+# ========================
+#
+# 1. ENCRYPTION AT REST:
+#    - EFS: Enabled by default (uses AWS KMS)
+#    - Filestore: Enable encryption in settings
+#    - Azure Files: Enable encryption in settings
+#
+# 2. ENCRYPTION IN TRANSIT:
+#    - EFS: Use 'tls' mount option (see above)
+#    - Filestore: Enabled by default
+#    - Azure Files: Use SMB 3.0 with encryption
+#
+# 3. ACCESS CONTROL:
+#    - Use IAM policies to restrict who can access storage
+#    - Use EFS Access Points for per-application isolation
+#    - Use Network Policies to restrict pod access
+#
+# 4. BACKUP AND DISASTER RECOVERY:
+#    - Enable automated backups (EFS Backup, GCP snapshots)
+#    - Test restore procedures regularly
+#    - Keep backups in different region (for disaster recovery)
+#
+# 5. AUDIT LOGGING:
+#    - Enable CloudTrail (AWS) or Cloud Audit Logs (GCP)
+#    - Monitor for unauthorized access
+#    - Alert on suspicious activity
+
+---
+# TROUBLESHOOTING STORAGE ISSUES
+# ===============================
+#
+# SYMPTOM: "PersistentVolumeClaim is pending"
+# CAUSE: StorageClass doesn't exist or can't provision
+# FIX: Check StorageClass exists: kubectl get storageclass
+#      Check EFS/Filestore is created and accessible
+#
+# SYMPTOM: "Pod stuck in ContainerCreating"
+# CAUSE: Can't mount PVC (wrong access mode, PVC doesn't exist)
+# FIX: Check PVC exists: kubectl get pvc -n bioinformatics
+#      Check PVC is bound: kubectl describe pvc genomics-data-pvc -n bioinformatics
+#
+# SYMPTOM: "Permission denied" when writing to PVC
+# CAUSE: Wrong directory permissions or security context
+# FIX: Check pod security context (runAsUser, fsGroup)
+#      Check directory permissions in PVC
+#
+# SYMPTOM: "No space left on device"
+# CAUSE: PVC is full
+# FIX: Increase PVC size (if allowVolumeExpansion: true)
+#      kubectl patch pvc genomics-data-pvc -n bioinformatics -p '{"spec":{"resources":{"requests":{"storage":"200Gi"}}}}'
+#
+# SYMPTOM: Slow performance
+# CAUSE: Storage throughput limit, network bottleneck
+# FIX: Check EFS/Filestore metrics in cloud console
+#      Upgrade to higher throughput mode
+#      Use local SSD cache (emptyDir) for intermediate files
+#
+# DEBUGGING COMMANDS:
+#   # Check PVC status
+#   kubectl get pvc -n bioinformatics
+#   
+#   # Describe PVC (see events)
+#   kubectl describe pvc genomics-data-pvc -n bioinformatics
+#   
+#   # Check StorageClass
+#   kubectl get storageclass efs-sc
+#   
+#   # Test mounting PVC (create test pod)
+#   kubectl run -it --rm test-pvc --image=busybox --restart=Never \
+#     --overrides='{"spec":{"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"genomics-data-pvc"}}],"containers":[{"name":"test","image":"busybox","volumeMounts":[{"name":"data","mountPath":"/data"}]}]}}' \
+#     -n bioinformatics -- sh
+#   
+#   # Inside test pod, check if you can write
+#   echo "test" > /data/test.txt
+#   ls -la /data/
+
+---
+# DEVOPS INTERVIEW TALKING POINTS
+# ================================
+#
+# "I configured ReadWriteMany PVCs for shared genomic data"
+#   - Understood the requirement for parallel access
+#   - Chose appropriate storage backend (EFS/Filestore)
+#   - Configured proper access modes
+#
+# "I implemented cost optimization strategies"
+#   - Used tiered storage (hot vs. cold data)
+#   - Set up lifecycle policies for data retention
+#   - Monitored storage usage and costs
+#
+# "I understand the trade-offs between storage types"
+#   - EBS: Fast but ReadWriteOnce only
+#   - EFS: ReadWriteMany but more expensive
+#   - S3: Cheap but not POSIX filesystem
+#
+# "I know how to troubleshoot storage issues"
+#   - Check PVC status and events
+#   - Test mounting with debug pods
+#   - Monitor performance metrics
+#   - Understand security contexts and permissions
