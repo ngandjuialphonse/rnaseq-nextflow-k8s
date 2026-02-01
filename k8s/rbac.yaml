@@ -49,9 +49,6 @@ metadata:
 # =======
 # Defines WHAT actions are allowed on WHAT resources
 #
-# DEVOPS ANALOGY:
-# Like an IAM policy in AWS - defines allowed actions
-#
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
