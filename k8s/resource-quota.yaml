@@ -11,10 +11,6 @@
 # 3. Control costs (limit total resource usage)
 # 4. Ensure cluster stability (prevent resource exhaustion)
 #
-# DEVOPS ANALOGY:
-# Like AWS Service Quotas or GCP quotas
-# Or like setting budget alerts in cloud billing
-#
 # ============================================================================
 
 apiVersion: v1
