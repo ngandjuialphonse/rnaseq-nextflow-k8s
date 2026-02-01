@@ -1,4 +1,4 @@
-_# featureCounts (from Subread package) Container
+# featureCounts (from Subread package) Container
 # ===============================================
 #
 # NOTE: This container provides `featureCounts`, which is used for the
@@ -8,9 +8,6 @@ _# featureCounts (from Subread package) Container
 # WHAT IT DOES:
 # - Counts how many reads from a BAM file map to each gene.
 # - Produces a simple count matrix (genes x samples).
-#
-# DEVOPS ANALOGY:
-# Like a `GROUP BY` query in SQL - `SELECT gene, COUNT(*) FROM alignments GROUP BY gene`.
 #
 # RESOURCES:
 # - CPU: 4+ cores
@@ -23,7 +20,7 @@ _# featureCounts (from Subread package) Container
 FROM ubuntu:22.04
 
 # Metadata
-LABEL maintainer="devops-team@company.com"
+LABEL maintainer="devops-team@alphonse.com"
 LABEL description="featureCounts (from Subread) for gene quantification"
 LABEL version="2.0.3"
 
