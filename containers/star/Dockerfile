@@ -2,9 +2,6 @@
 # ======================
 # STAR is a fast RNA-seq aligner.
 #
-# DEVOPS ANALOGY:
-# Like a high-performance database engine for sequence alignment.
-#
 # WHAT IT DOES:
 # - Aligns RNA sequences to a reference genome.
 # - Handles spliced reads (a key feature for RNA-seq).
@@ -21,7 +18,7 @@
 FROM ubuntu:22.04
 
 # Metadata
-LABEL maintainer="devops-team@company.com"
+LABEL maintainer="devops-team@alphonse.com"
 LABEL description="STAR aligner for RNA-Seq pipelines"
 LABEL version="2.7.10a"
 
