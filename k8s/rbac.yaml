@@ -9,10 +9,6 @@
 # Nextflow dynamically creates and deletes pods for each task in the pipeline.
 # Without proper permissions, it can't manage these worker pods.
 #
-# DEVOPS ANALOGY:
-# Like giving Jenkins a service account with permissions to deploy to Kubernetes
-# Or like IAM roles in AWS - defining what a service can do
-#
 # RBAC COMPONENTS:
 # 1. ServiceAccount: Identity (WHO)
 # 2. Role: Permissions (WHAT actions on WHAT resources)
