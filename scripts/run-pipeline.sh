@@ -9,9 +9,6 @@
 # 1. Sets pipeline parameters.
 # 2. Executes the `nextflow run` command with the kubernetes profile.
 #
-# DEVOPS ANALOGY:
-# Like a deployment script that triggers a Jenkins job or Argo Workflow.
-#
 # USAGE:
 #   bash scripts/run-pipeline.sh
 #
