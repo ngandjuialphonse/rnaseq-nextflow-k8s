@@ -9,9 +9,6 @@
 # 1. Downloads tiny FASTQ files (E. coli, ~1MB).
 # 2. Downloads the corresponding reference genome and annotations.
 #
-# DEVOPS ANALOGY:
-# Like a database seeding script - populates the environment with test data.
-#
 # USAGE:
 #   bash scripts/download-test-data.sh
 #
