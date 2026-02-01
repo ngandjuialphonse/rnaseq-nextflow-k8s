@@ -26,10 +26,6 @@
 # ================================
 # Defines HOW storage is provisioned
 #
-# DEVOPS ANALOGY:
-# Like defining an EBS volume type (gp3, io2, etc.)
-# Or like S3 storage classes (Standard, IA, Glacier)
-#
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -114,10 +110,6 @@ allowVolumeExpansion: true  # Can increase size later without downtime
 # PERSISTENT VOLUME CLAIM (PVC)
 # ==============================
 # Requests storage from the StorageClass
-#
-# DEVOPS ANALOGY:
-# Like requesting an EBS volume or creating an S3 bucket
-# The PVC is the "request", the PV (PersistentVolume) is the "actual storage"
 #
 apiVersion: v1
 kind: PersistentVolumeClaim
