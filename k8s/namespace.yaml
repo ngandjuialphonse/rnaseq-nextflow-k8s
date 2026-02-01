@@ -13,9 +13,6 @@
 # 4. Organization: Group related resources together
 # 5. Multi-tenancy: Multiple teams can share the same cluster
 #
-# DEVOPS ANALOGY:
-# Like creating a separate AWS account or GCP project for a team/project
-#
 apiVersion: v1
 kind: Namespace
 metadata:
