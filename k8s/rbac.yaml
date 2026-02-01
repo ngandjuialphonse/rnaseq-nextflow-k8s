@@ -21,10 +21,6 @@
 # ==================
 # This is the identity that Nextflow will use
 #
-# DEVOPS ANALOGY:
-# Like an IAM service account in AWS/GCP
-# Or like a service principal in Azure
-#
 apiVersion: v1
 kind: ServiceAccount
 metadata:
