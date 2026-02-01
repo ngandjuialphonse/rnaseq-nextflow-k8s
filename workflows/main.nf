@@ -6,10 +6,6 @@
  * 
  * This pipeline processes RNA sequencing data to quantify gene expression.
  * 
- * DEVOPS ANALOGY:
- * Think of this as a data processing pipeline similar to:
- *   Raw Logs → Validation → Transformation → Aggregation → Dashboard
- * 
  * PIPELINE STAGES:
  * 1. FastQC: Quality control (like log validation)
  * 2. STAR: Alignment (like JOIN query on 3 billion rows)
