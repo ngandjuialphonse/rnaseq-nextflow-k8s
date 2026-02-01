@@ -18,7 +18,7 @@
 FROM python:3.9-slim
 
 # Metadata
-LABEL maintainer="devops-team@company.com"
+LABEL maintainer="devops-team@alphonse.com"
 LABEL description="MultiQC for aggregating bioinformatics QC results"
 LABEL version="1.14"
 
