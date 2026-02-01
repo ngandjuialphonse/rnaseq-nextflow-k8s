@@ -2,9 +2,6 @@
 # =================
 # FastQC is a quality control tool for high-throughput sequence data
 #
-# DEVOPS ANALOGY:
-# Like a log validator - checks if data is good quality
-#
 # WHAT IT DOES:
 # - Analyzes FASTQ files
 # - Generates quality metrics
