@@ -11,9 +11,6 @@
 # 3. Creates storage (PVC)
 # 4. Sets resource quotas
 #
-# DEVOPS ANALOGY:
-# Like running Terraform apply - sets up infrastructure
-#
 # USAGE:
 #   bash scripts/setup-k8s.sh
 #
