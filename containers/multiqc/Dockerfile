@@ -2,9 +2,6 @@
 # =================
 # MultiQC aggregates results from bioinformatics analyses across many samples into a single report.
 #
-# DEVOPS ANALOGY:
-# Like Grafana or Datadog - creates a unified dashboard from multiple data sources.
-#
 # WHAT IT DOES:
 # - Scans a directory for log files from supported tools (FastQC, STAR, etc.).
 # - Parses the logs and extracts key metrics.
