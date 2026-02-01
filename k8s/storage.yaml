@@ -19,10 +19,6 @@
 # Use a PersistentVolumeClaim (PVC) with ReadWriteMany access mode
 # backed by a network file system (NFS, EFS, Filestore)
 #
-# DEVOPS ANALOGY:
-# Like a shared NFS mount for distributed workers
-# Or like S3 (but with POSIX filesystem semantics)
-#
 # ============================================================================
 
 ---
