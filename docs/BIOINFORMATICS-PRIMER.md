@@ -1,5 +1,4 @@
-# Bioinformatics Primer for DevOps Engineers
-
+# Bioinformatics Primer - Pipeline Process - Automation
 ## 🎯 Goal: Understand RNA-Seq Without a Biology Degree
 
 This document explains bioinformatics concepts using analogies from systems you already know: web servers, databases, log processing, and distributed systems.
