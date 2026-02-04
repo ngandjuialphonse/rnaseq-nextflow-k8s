@@ -425,6 +425,4 @@ MIT License - See [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ by a DevOps Engineer learning Bioinformatics**
-
 *Questions? Open an issue or reach out!*
