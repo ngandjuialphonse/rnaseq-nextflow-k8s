@@ -34,7 +34,7 @@ graph TD
 
     subgraph Kubernetes Cluster
         E[Nextflow Head Pod] -- Manages --> F[Worker Pods]
-        F -- Reads/Writes --> G[Shared Storage (PVC)]
+        F -- Reads/Writes --> G[Shared Storage - PVC]
         D -- Pulls Image --> F
     end
 
